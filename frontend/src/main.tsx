@@ -5,6 +5,7 @@ import {CircleMarker, MapContainer, Popup, TileLayer, ZoomControl} from 'react-l
 import 'leaflet/dist/leaflet.css';
 import './style.css';
 
+
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const diseaseLabels: Record<string,string> = {dengue:'Dengue', malaria:'Malaria', respiratory:'Acute respiratory infection', diarrhoeal:'Acute diarrhoeal disease'};
 const diseaseColors: Record<string,string> = {dengue:'#d96552', malaria:'#d89a3a', respiratory:'#0e9477', diarrhoeal:'#7185d1'};
