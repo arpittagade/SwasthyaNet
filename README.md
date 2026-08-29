@@ -193,3 +193,7 @@ The frontend includes two restrained open-source unDraw SVG illustrations in `fr
 The application now opens to a public `#/landing` experience when no session is present. The page introduces the operational problem, explains the Observe → Predict → Coordinate workflow, presents three healthcare/analytics visuals, and routes users to `#/login` through the Get started CTA. The login view uses a responsive split layout with a large healthcare illustration and explanatory copy on the left and the secure role-based sign-in form on the right. The password field includes an accessible visibility toggle so users can reveal or hide the entered password.
 
 The landing illustrations are sourced from official unDraw pages and are stored locally in `frontend/public/assets` so the deployed dashboard does not depend on remote image hosting. Source details remain in `frontend/public/assets/ASSET_SOURCES.md`.
+
+## All-pages dark mode
+
+Light and dark themes are now available consistently on the public landing page, split login page, and authenticated command center. The shared theme control uses an animated icon transition, smooth surface/color transitions, dark-mode-specific illustration treatment, and a persisted browser preference so the selected theme survives navigation and reloads. The login and landing pages expose the same toggle before authentication; the command center exposes it in the authenticated header.
