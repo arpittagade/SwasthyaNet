@@ -160,3 +160,18 @@ summary
 ```
 
 The regional map uses OpenStreetMap tiles for geography and synthetic PHC coordinates for the demo. If external tiles are unavailable, the surrounding dashboard and underlying data remain usable.
+
+## Multi-page operations console
+
+The frontend now provides four client-side operations pages with hash URLs so each view can be opened directly and shared during a demo:
+
+| Page | Route | Purpose |
+|---|---|---|
+| Overview | `#/overview` | Network KPIs, PHC map, alerts, and executive command summary |
+| Outbreak intelligence | `#/outbreaks` | Disease trends, interactive regional map, critical signals, and alert feed |
+| Supply logistics | `#/logistics` | PHC map, inventory forecast, live capacity pulse, and transfer recommendations |
+| Federation & reports | `#/governance` | Privacy boundary, state reporting, and PDF/CSV export controls |
+
+A new live capacity pulse chart compares rolling bed occupancy and staff attendance for the selected PHC. All live-style charts refresh with the authenticated simulation cycle and remain labeled as synthetic telemetry.
+
+The login screen now uses the clearer message: **Demo accounts are provided for this demonstration.**
