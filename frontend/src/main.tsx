@@ -25,13 +25,14 @@ function App(){
   const authFetch=(url:string,options:RequestInit={})=>fetch(url,{...options,headers:{...(options.headers||{}),Authorization:`Bearer ${token}`} });
   const logout=()=>{localStorage.removeItem('swasthyanet-token');localStorage.removeItem('swasthyanet-user');setToken('');setUser(null);setData(null);setDetail(null)};
   const load=()=>authFetch(`${API}/api/dashboard`).then(async r=>{if(r.status===401){logout();throw new Error('session')}return r.json()}).then(setData).catch(()=>setToast('Backend temporarily unavailable')).finally(()=>setLoading(false));
+  const refreshLive=()=>authFetch(user?.role==='state_official'?`${API}/api/simulate/tick`:`${API}/api/dashboard`,{method:user?.role==='state_official'?'POST':'GET'}).then(async r=>{if(r.status===401){logout();throw new Error('session')}return r.json()}).then(setData).catch(()=>setToast('Live stream temporarily unavailable'));
   const login=(event:FormEvent)=>{event.preventDefault();setLoginError('');fetch(`${API}/api/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginUsername,password:loginPassword})}).then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.detail||'Login failed');localStorage.setItem('swasthyanet-token',body.access_token);localStorage.setItem('swasthyanet-user',JSON.stringify(body.user));setToken(body.access_token);setUser(body.user)}).catch(error=>setLoginError(error.message))};
   useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('swasthyanet-theme',theme)},[theme]);
   useEffect(()=>{const onHash=()=>setPage(window.location.hash.replace('#/','')||'overview');window.addEventListener('hashchange',onHash);return()=>window.removeEventListener('hashchange',onHash)},[]);
   const navigate=(next:string)=>{window.location.hash=`/${next}`;setPage(next)};
   useEffect(()=>{if(token)load()},[token]);
   useEffect(()=>{if(!token)return;authFetch(`${API}/api/outbreaks`).then(r=>r.json()).then(body=>{setOutbreak(body);if(body.critical_alerts?.length)setCriticalAlert(body.critical_alerts[0])}).catch(()=>{})},[token,data?.tick]);
-  useEffect(()=>{if(!autoRefresh||!token)return;const id=setInterval(()=>load(),8000);return()=>clearInterval(id)},[autoRefresh,token]);
+  useEffect(()=>{if(!autoRefresh||!token||!user)return;const id=setInterval(()=>refreshLive(),8000);return()=>clearInterval(id)},[autoRefresh,token,user]);
   useEffect(()=>{if(selected&&token)authFetch(`${API}/api/phcs/${selected}`).then(r=>r.json()).then(setDetail).catch(()=>{})},[selected,data?.tick,token]);
   useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(''),3000);return()=>clearTimeout(id)},[toast]);
 
