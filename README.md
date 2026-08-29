@@ -175,3 +175,9 @@ The frontend now provides four client-side operations pages with hash URLs so ea
 A new live capacity pulse chart compares rolling bed occupancy and staff attendance for the selected PHC. All live-style charts refresh with the authenticated simulation cycle and remain labeled as synthetic telemetry.
 
 The login screen now uses the clearer message: **Demo accounts are provided for this demonstration.**
+
+## Predictive outbreak forecasting
+
+The outbreak intelligence page now includes an explainable four-week projection for the selected disease. The service fits a deterministic least-squares trend over the latest six synthetic weekly observations and returns direction, slope, next-week estimate, four-week projected total, and a bounded confidence score. The chart separates observed reports from dashed predicted reports and displays the model explanation beside the visualization. These projections are synthetic planning signals, not clinical diagnoses or epidemiological forecasts.
+
+Dashboard typography has also been increased across navigation, chart legends, panel labels, body copy, alerts, controls, authentication fields, and report actions. The compact layout and responsive behavior are preserved while improving readability on normal desktop and mobile screens.

@@ -1,14 +1,46 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from random import Random
-from datetime import datetime, timezone
 
 DISEASES = ["Dengue", "Malaria", "Acute respiratory infection", "Acute diarrhoeal disease"]
+DISEASE_KEYS = ("dengue", "malaria", "respiratory", "diarrhoeal")
+
+
+def _linear_projection(values: list[int], horizon: int = 4) -> dict:
+    """Fit a small, explainable least-squares trend to recent synthetic observations."""
+    recent = values[-min(6, len(values)) :]
+    n = len(recent)
+    xs = list(range(n))
+    x_mean = sum(xs) / max(1, n)
+    y_mean = sum(recent) / max(1, n)
+    denominator = sum((x - x_mean) ** 2 for x in xs)
+    slope = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, recent)) / denominator if denominator else 0.0
+    intercept = y_mean - slope * x_mean
+    predicted = [max(0, round(intercept + slope * (n - 1 + step))) for step in range(1, horizon + 1)]
+
+    residual_sum = sum((y - (intercept + slope * x)) ** 2 for x, y in zip(xs, recent))
+    total_sum = sum((y - y_mean) ** 2 for y in recent)
+    r_squared = 1.0 if total_sum == 0 else max(0.0, min(1.0, 1 - residual_sum / total_sum))
+    confidence = round(min(0.96, max(0.58, 0.58 + 0.34 * r_squared)), 2)
+    direction = "rising" if slope > 0.45 else "falling" if slope < -0.45 else "stable"
+
+    return {
+        "model": "Explainable linear trend",
+        "training_window_weeks": n,
+        "horizon_weeks": horizon,
+        "slope_per_week": round(slope, 2),
+        "direction": direction,
+        "confidence": confidence,
+        "next_week": predicted[0],
+        "four_week_total": sum(predicted),
+        "explanation": "Least-squares trend over the latest six synthetic weekly observations, projected four weeks forward.",
+        "predicted_values": predicted,
+    }
 
 
 def outbreak_trends(phcs: list[dict], weeks: int = 16) -> dict:
-    """Generate clearly synthetic weekly syndromic signals for the dashboard."""
+    """Generate clearly synthetic weekly syndromic signals and explainable projections."""
     rng = Random(2026 + len(phcs))
     rows = []
     start = date.today() - timedelta(weeks=weeks - 1)
@@ -22,17 +54,48 @@ def outbreak_trends(phcs: list[dict], weeks: int = 16) -> dict:
             "respiratory": round((34 - week * 0.7 + rng.randint(-5, 6)) * district_factor / 6),
             "diarrhoeal": round((11 + rng.randint(-3, 5)) * district_factor / 6),
         })
-    totals = {key: sum(row[key] for row in rows) for key in ("dengue", "malaria", "respiratory", "diarrhoeal")}
+
+    forecasts = {}
+    for key in DISEASE_KEYS:
+        values = [row[key] for row in rows]
+        model = _linear_projection(values)
+        points = [{"week": row["week"], "observed": row[key], "forecast": None} for row in rows]
+        last_week = date.fromisoformat(rows[-1]["week"])
+        for step, value in enumerate(model["predicted_values"], start=1):
+            points.append({
+                "week": (last_week + timedelta(weeks=step)).isoformat(),
+                "observed": None,
+                "forecast": value,
+            })
+        forecasts[key] = {k: v for k, v in model.items() if k != "predicted_values"}
+        forecasts[key]["points"] = points
+
+    totals = {key: sum(row[key] for row in rows) for key in DISEASE_KEYS}
     latest = rows[-1]
     regional = []
     critical_alerts = []
     for index, phc in enumerate(phcs):
         multiplier = 0.72 + (index % 4) * 0.12
         region = {"phc_id": phc["id"], "phc_name": phc["name"], "district": phc["district"], "lat": phc["lat"], "lon": phc["lon"]}
-        for key in ("dengue", "malaria", "respiratory", "diarrhoeal"):
+        for key in DISEASE_KEYS:
             region[key] = max(1, round(latest[key] * multiplier + rng.randint(-2, 3)))
         region["risk"] = "critical" if region["dengue"] >= 30 else "watch" if region["dengue"] >= 20 else "stable"
         regional.append(region)
         if region["risk"] == "critical":
             critical_alerts.append({"id": f"{phc['id']}-dengue", "phc_id": phc["id"], "phc_name": phc["name"], "district": phc["district"], "disease": "Dengue", "cases": region["dengue"], "severity": "critical", "message": f"{phc['name']} has a critical synthetic dengue signal ({region['dengue']} reports this week)."})
-    return {"synthetic": True, "generated_at": datetime.now(timezone.utc).isoformat(), "period_weeks": weeks, "diseases": DISEASES, "trends": rows, "regional": regional, "critical_alerts": critical_alerts, "summary": {"total_reports": sum(totals.values()), "leading_signal": max(totals, key=totals.get), "week_over_week": round((rows[-1]["dengue"] - rows[-2]["dengue"]) / max(1, rows[-2]["dengue"]) * 100, 1)}}
+
+    return {
+        "synthetic": True,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "period_weeks": weeks,
+        "diseases": DISEASES,
+        "trends": rows,
+        "forecast": forecasts,
+        "regional": regional,
+        "critical_alerts": critical_alerts,
+        "summary": {
+            "total_reports": sum(totals.values()),
+            "leading_signal": max(totals, key=totals.get),
+            "week_over_week": round((rows[-1]["dengue"] - rows[-2]["dengue"]) / max(1, rows[-2]["dengue"]) * 100, 1),
+        },
+    }
