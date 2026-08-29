@@ -49,7 +49,7 @@ flowchart LR
     I --> J[React dashboard]
 ```
 
-The `backend/app/services` directory intentionally separates the core mechanisms. `simulator.py` creates realistic-but-synthetic daily fluctuations. `ai.py` contains the forecast, alert, redistribution, haversine distance, and federated summary logic. `main.py` exposes those services through stable API contracts.
+The `backend/app/services` directory intentionally separates the core mechanisms. `simulator.py` creates realistic-but-synthetic daily fluctuations. `forecasting.py`, `alerts.py`, `redistribution.py`, and `federation.py` contain the inspectable AI and network logic. `main.py` exposes those services through stable API contracts.
 
 ## Core mechanism
 
@@ -110,7 +110,10 @@ A moving average was chosen over Prophet/ARIMA because it installs quickly, is d
 
 ```text
 backend/app/services/simulator.py   synthetic data and live tick
-backend/app/services/ai.py          forecast, alerts, distance, transfers, federation
+backend/app/services/forecasting.py  weighted moving-average forecast
+backend/app/services/alerts.py       threshold and forecast alerts
+backend/app/services/redistribution.py distance-aware transfer matching
+backend/app/services/federation.py   aggregate-only network metrics
 backend/app/main.py                 FastAPI and WebSocket API
 backend/tests/test_ai.py            core mechanism tests
 frontend/src/main.tsx               dashboard composition and data flow

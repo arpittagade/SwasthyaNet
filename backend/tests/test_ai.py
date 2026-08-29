@@ -1,7 +1,9 @@
 import sys
 sys.path.insert(0, 'backend')
 from app.services.simulator import SimulationState
-from app.services.ai import forecast, build_alerts, recommendations
+from app.services.forecasting import forecast
+from app.services.alerts import build_alerts
+from app.services.redistribution import recommendations
 
 
 def test_forecast_is_positive_and_explainable():

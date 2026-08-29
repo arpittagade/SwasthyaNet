@@ -3,7 +3,10 @@ import asyncio
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from .services.simulator import STATE
-from .services.ai import build_alerts, forecast, recommendations, federated_summary
+from .services.forecasting import forecast
+from .services.alerts import build_alerts
+from .services.redistribution import recommendations
+from .services.federation import federated_summary
 
 app = FastAPI(title="SwasthyaNet API", version="0.1.0", description="Synthetic federated PHC resilience demo")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
