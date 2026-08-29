@@ -15,3 +15,10 @@ A second unDraw illustration is selected for the overview analytics header:
 - Asset: `dashboard.svg`
 - Intended use: a compact analytics visual beside the predictive outbreak summary.
 - Source guidance observed: the official page offers an SVG download for projects and identifies the illustration as open-source.
+
+A third unDraw illustration is selected for the landing-page care-and-impact section:
+
+- Source page: https://undraw.co/illustration/medicine_hqqg
+- Asset: `medicine.svg`
+- Intended use: a healthcare feature card on the public landing page.
+- Source guidance observed: the official page offers an SVG download for projects and identifies the illustration as open-source.

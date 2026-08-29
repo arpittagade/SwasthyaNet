@@ -187,3 +187,9 @@ Dashboard typography has also been increased across navigation, chart legends, p
 The outbreak intelligence page supports both the existing 8-week and 16-week shortcuts and a validated custom calendar range. Custom ranges must be between 14 and 365 days and are passed to the authenticated `GET /api/outbreaks?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` endpoint. The selected range updates the observed series, summary window, and four-week predictive context. The implementation uses local calendar formatting so date controls remain correct across time zones.
 
 The frontend includes two restrained open-source unDraw SVG illustrations in `frontend/public/assets`: `medical-care.svg` and `dashboard.svg`. Their source pages and intended use are recorded in `frontend/public/assets/ASSET_SOURCES.md`. Operational charts remain data-driven; the illustrations are decorative context only and do not represent health statistics.
+
+## Public landing and sign-in experience
+
+The application now opens to a public `#/landing` experience when no session is present. The page introduces the operational problem, explains the Observe → Predict → Coordinate workflow, presents three healthcare/analytics visuals, and routes users to `#/login` through the Get started CTA. The login view uses a responsive split layout with a large healthcare illustration and explanatory copy on the left and the secure role-based sign-in form on the right. The password field includes an accessible visibility toggle so users can reveal or hide the entered password.
+
+The landing illustrations are sourced from official unDraw pages and are stored locally in `frontend/public/assets` so the deployed dashboard does not depend on remote image hosting. Source details remain in `frontend/public/assets/ASSET_SOURCES.md`.
