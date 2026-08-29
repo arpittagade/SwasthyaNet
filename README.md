@@ -61,20 +61,6 @@ The alert engine combines forecast and policy signals. It marks inventory when t
 
 Each PHC is represented as a local node. Its raw inventory histories, staffing histories, and event-level values stay inside the simulation state. The `federated_summary` service shares only weighted occupancy, mean attendance, node count, district count, and a documented privacy-boundary statement. This is an architectural simulation of federated learning rather than a claim of secure production FL. A production deployment would add authenticated node identity, encrypted transport, secure aggregation, differential privacy, audit logs, and formal threat modeling.
 
-## Evaluation matrix alignment
-
-| Domain | Score | Evidence in this repository |
-|---|---:|---|
-| Problem understanding | 10 | Problem statement, assumptions, synthetic-data constraints, and explicit hardest challenge in this README. |
-| Research depth | 10 | Explainable forecasting rationale, federated-learning boundary, production integration path, and alternatives documented below. |
-| Architecture and technical depth | 20 | Modular simulator, forecast, alert, redistribution, federation, API, WebSocket, and React layers plus Mermaid architecture. |
-| Working prototype | 15 | `docker compose up`, six PHC nodes, live polling, drill-down, chart, alert feed, transfers, and federated flow. |
-| Experimental evidence | 10 | Deterministic seed, 30-day history, focused automated tests, and the reproducible experiment below. |
-| Resilience / live evaluation | 15 | Manual simulation tick, eight-second polling, graceful frontend loading, and last-state-friendly stateless API design. |
-| Security / privacy / correctness | 5 | Synthetic banner, no patient data, local/raw-data boundary, CORS/API notes, and testable algorithms. |
-| Technical defense | 10 | Separate AI services, explicit formulas, stable API endpoints, and judge script. |
-| Real-world impact | 5 | DHIS2/state-feed integration boundary and redistribution use case described below. |
-
 ## Experimental evidence
 
 The seeded scenario creates a known shortage of paracetamol at Rajapur PHC and a safe surplus at Sinnar PHC. Run the tests:
