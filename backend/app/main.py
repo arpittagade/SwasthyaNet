@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from fastapi import Depends, FastAPI, HTTPException, WebSocket
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -51,9 +51,16 @@ def dashboard(user: User = Depends(current_user)):
     return {"day": snapshot["day"], "tick": snapshot["tick"], "synthetic": True, "viewer": public_user(user), "kpis": {"phcs": len(phcs), "districts": len(set(p["district"] for p in phcs)), "beds": sum(p["beds"] for p in phcs), "occupied": sum(p["occupied"] for p in phcs), "critical_alerts": sum(a["severity"] == "critical" for a in alerts), "active_alerts": len(alerts)}, "phcs": [phc_view(p) for p in phcs], "alerts": alerts[:20], "recommendations": recommendations(phcs) if user.role == "state_official" else [], "federated": federated_summary(phcs)}
 
 @app.get("/api/outbreaks")
-def outbreaks(user: User = Depends(current_user)):
+def outbreaks(
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
+    user: User = Depends(current_user),
+):
     visible = STATE.phcs if user.role == "state_official" else [p for p in STATE.phcs if p["id"] == user.phc_id]
-    return outbreak_trends(visible)
+    try:
+        return outbreak_trends(visible, start_date=start_date, end_date=end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.get("/api/reports/state.csv")
 def state_csv(user: User = Depends(require_roles("state_official"))):

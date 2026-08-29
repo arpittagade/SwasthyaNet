@@ -39,11 +39,30 @@ def _linear_projection(values: list[int], horizon: int = 4) -> dict:
     }
 
 
-def outbreak_trends(phcs: list[dict], weeks: int = 16) -> dict:
-    """Generate clearly synthetic weekly syndromic signals and explainable projections."""
+def outbreak_trends(
+    phcs: list[dict], weeks: int = 16, start_date: str | None = None, end_date: str | None = None
+) -> dict:
+    """Generate synthetic weekly signals for a preset or validated custom date range."""
     rng = Random(2026 + len(phcs))
     rows = []
-    start = date.today() - timedelta(weeks=weeks - 1)
+    if start_date or end_date:
+        if not start_date or not end_date:
+            raise ValueError("Both start_date and end_date are required for a custom range.")
+        try:
+            period_start = date.fromisoformat(start_date)
+            period_end = date.fromisoformat(end_date)
+        except ValueError as exc:
+            raise ValueError("Dates must use ISO format YYYY-MM-DD.") from exc
+        if period_end < period_start:
+            raise ValueError("end_date must be on or after start_date.")
+        if (period_end - period_start).days < 13:
+            raise ValueError("Custom ranges must cover at least 14 days.")
+        if (period_end - period_start).days > 364:
+            raise ValueError("Custom ranges cannot exceed 365 days.")
+        start = period_start
+        weeks = (period_end - period_start).days // 7 + 1
+    else:
+        start = date.today() - timedelta(weeks=weeks - 1)
     district_factor = max(1, len(phcs))
     for week in range(weeks):
         seasonal = 1.0 + 0.28 * (week / max(1, weeks - 1))
@@ -88,6 +107,9 @@ def outbreak_trends(phcs: list[dict], weeks: int = 16) -> dict:
         "synthetic": True,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "period_weeks": weeks,
+        "start_date": rows[0]["week"],
+        "end_date": (period_end if start_date and end_date else date.fromisoformat(rows[-1]["week"])).isoformat(),
+        "custom_range": bool(start_date or end_date),
         "diseases": DISEASES,
         "trends": rows,
         "forecast": forecasts,

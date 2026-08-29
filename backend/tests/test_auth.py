@@ -59,3 +59,21 @@ def test_state_official_can_read_outbreaks_and_export_reports():
 def test_phc_admin_cannot_export_state_reports():
     token = login('rajapur.admin', 'Rajapur@2026').json()['access_token']
     assert client.get('/api/reports/state.csv', headers={'Authorization': f'Bearer {token}'}).status_code == 403
+
+
+def test_state_official_can_filter_outbreaks_by_custom_date_range():
+    token = login('state.official', 'State@2026').json()['access_token']
+    headers = {'Authorization': f'Bearer {token}'}
+    response = client.get('/api/outbreaks?start_date=2026-01-01&end_date=2026-03-31', headers=headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['custom_range'] is True
+    assert payload['start_date'] == '2026-01-01'
+    assert payload['end_date'] == '2026-03-31'
+    assert len(payload['trends']) == 13
+
+
+def test_outbreak_custom_date_range_rejects_short_window():
+    token = login('state.official', 'State@2026').json()['access_token']
+    response = client.get('/api/outbreaks?start_date=2026-01-01&end_date=2026-01-05', headers={'Authorization': f'Bearer {token}'})
+    assert response.status_code == 400
