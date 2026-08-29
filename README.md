@@ -110,3 +110,28 @@ docker-compose.yml                  one-command demo
 ## References
 
 The implementation baseline is the hackathon brief supplied by the project owner. Production integration with DHIS2, secure federated learning, authentication, and clinical governance is intentionally left as a future engineering and policy phase rather than represented as completed functionality.
+
+## Authentication and role-based access
+
+The dashboard now requires authentication. Two demo roles are available:
+
+| Role | Username | Demo password | Access |
+|---|---|---|---|
+| State official | `state.official` | `State@2026` | Network-wide PHC dashboard, alerts, redistribution recommendations, and simulation controls |
+| PHC administrator | `rajapur.admin` | `Rajapur@2026` | Rajapur PHC data only; cannot access other PHCs or advance the global simulation |
+
+The backend issues signed bearer sessions through `POST /api/auth/login`. Protected routes validate the signature, expiry, user identity, and role. PHC administrators are scoped to their assigned PHC, while state officials can view the network. The frontend persists the session token locally, adds it to API requests, provides role-aware controls, and supports sign out.
+
+For Render, add this environment variable under the backend service:
+
+```text
+SWASTHYANET_JWT_SECRET=<long-random-secret>
+```
+
+Generate a value locally with:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Never commit the secret or place it in Vercel. The frontend only needs `VITE_API_URL`; the JWT signing secret must remain server-side in Render. The built-in demo accounts are suitable for judging only. A real deployment should replace them with an identity provider, hashed credentials in a secure store, refresh-token rotation, audit logs, and stricter CORS origins.
