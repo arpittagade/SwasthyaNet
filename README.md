@@ -197,3 +197,23 @@ The landing illustrations are sourced from official unDraw pages and are stored 
 ## All-pages dark mode
 
 Light and dark themes are now available consistently on the public landing page, split login page, and authenticated command center. The shared theme control uses an animated icon transition, smooth surface/color transitions, dark-mode-specific illustration treatment, and a persisted browser preference so the selected theme survives navigation and reloads. The login and landing pages expose the same toggle before authentication; the command center exposes it in the authenticated header.
+
+## Automated end-to-end testing
+
+The frontend includes a Playwright browser suite in `frontend/e2e/app.spec.ts` and its configuration in `frontend/playwright.config.ts`. The suite starts or reuses the FastAPI and Vite services, then verifies the public landing-page CTA, light/dark theme switching and persistence, password visibility, state-official authentication, navigation across all dashboard pages, logout, and PHC-administrator scoping.
+
+From `frontend`, install the browser once and run the suite with:
+
+```bash
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
+
+The HTML report can be opened locally with:
+
+```bash
+npx playwright show-report
+```
+
+The tests use the existing demonstration accounts and local endpoints only; no production credentials are stored in the test files.
