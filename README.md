@@ -143,3 +143,20 @@ The dashboard includes a clearly labeled synthetic disease-signal panel with int
 State officials can download state-level reports directly from the dashboard. CSV reports are available at `GET /api/reports/state.csv`, and formatted PDF reports are available at `GET /api/reports/state.pdf`. Both endpoints require a state-official bearer session and include PHC capacity, staffing, alerts, and weekly disease-signal summaries. PHC administrators are intentionally denied these state-level exports.
 
 The automatic logout issue was caused by the eight-second refresh interval retaining the pre-login empty token in its closure. The refresh effect now depends on the current token and is disabled until a valid authenticated session exists, so subsequent dashboard refreshes continue sending the active bearer token.
+
+## Live outbreak notifications and regional map
+
+The dashboard now surfaces a real-time-style critical disease notification banner whenever the authenticated outbreak feed reports a critical regional signal. The banner includes the affected PHC, district, disease, synthetic report count, and a dismiss control. It is refreshed with the authenticated eight-second dashboard cycle and is intentionally labeled as synthetic.
+
+The PHC command view now uses an interactive Leaflet map with pan, zoom, PHC markers, status colors, outbreak-intensity sizing, and clickable popups. Popups show the selected disease signal, district, regional risk, and bed occupancy. The selected disease in the outbreak trends panel also changes the map’s regional visualization.
+
+The authenticated `GET /api/outbreaks` response now includes:
+
+```text
+trends
+regional
+critical_alerts
+summary
+```
+
+The regional map uses OpenStreetMap tiles for geography and synthetic PHC coordinates for the demo. If external tiles are unavailable, the surrounding dashboard and underlying data remain usable.
