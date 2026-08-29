@@ -135,3 +135,11 @@ python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 Never commit the secret or place it in Vercel. The frontend only needs `VITE_API_URL`; the JWT signing secret must remain server-side in Render. The built-in demo accounts are suitable for judging only. A real deployment should replace them with an identity provider, hashed credentials in a secure store, refresh-token rotation, audit logs, and stricter CORS origins.
+
+## Outbreak trends and reporting
+
+The dashboard includes a clearly labeled synthetic disease-signal panel with interactive disease selection and 8-week/16-week windows. The backend endpoint is `GET /api/outbreaks`, and it is scoped to the authenticated viewer: state officials see the network while PHC administrators see their assigned facility.
+
+State officials can download state-level reports directly from the dashboard. CSV reports are available at `GET /api/reports/state.csv`, and formatted PDF reports are available at `GET /api/reports/state.pdf`. Both endpoints require a state-official bearer session and include PHC capacity, staffing, alerts, and weekly disease-signal summaries. PHC administrators are intentionally denied these state-level exports.
+
+The automatic logout issue was caused by the eight-second refresh interval retaining the pre-login empty token in its closure. The refresh effect now depends on the current token and is disabled until a valid authenticated session exists, so subsequent dashboard refreshes continue sending the active bearer token.

@@ -42,3 +42,20 @@ def test_state_official_can_advance_simulation():
     response = client.post('/api/simulate/tick', headers={'Authorization': f'Bearer {token}'})
     assert response.status_code == 200
     assert response.json()['viewer']['role'] == 'state_official'
+
+
+def test_state_official_can_read_outbreaks_and_export_reports():
+    token = login('state.official', 'State@2026').json()['access_token']
+    headers = {'Authorization': f'Bearer {token}'}
+    outbreak = client.get('/api/outbreaks', headers=headers)
+    assert outbreak.status_code == 200
+    assert len(outbreak.json()['trends']) == 16
+    csv_response = client.get('/api/reports/state.csv', headers=headers)
+    pdf_response = client.get('/api/reports/state.pdf', headers=headers)
+    assert csv_response.status_code == 200 and 'text/csv' in csv_response.headers['content-type']
+    assert pdf_response.status_code == 200 and pdf_response.content.startswith(b'%PDF')
+
+
+def test_phc_admin_cannot_export_state_reports():
+    token = login('rajapur.admin', 'Rajapur@2026').json()['access_token']
+    assert client.get('/api/reports/state.csv', headers={'Authorization': f'Bearer {token}'}).status_code == 403
