@@ -92,7 +92,7 @@ function App(){
   useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('swasthyanet-theme',theme)},[theme]);
   // Show the skeleton loading state for a minimum of 3 seconds after sign-in,
   // even if the dashboard data actually arrives faster than that.
-  useEffect(()=>{if(!token){setMinSplashElapsed(false);return}setMinSplashElapsed(false);const id=setTimeout(()=>setMinSplashElapsed(true),3000);return()=>clearTimeout(id)},[token]);
+  useEffect(()=>{if(!token){setMinSplashElapsed(false);return}setMinSplashElapsed(false);const id=setTimeout(()=>setMinSplashElapsed(true),2000);return()=>clearTimeout(id)},[token]);
   useEffect(()=>{const onHash=()=>{const next=window.location.hash.replace('#/','')||'overview';if(next==='login'||next==='landing'){setAuthPage(next)}else setPage(next)};window.addEventListener('hashchange',onHash);return()=>window.removeEventListener('hashchange',onHash)},[]);
   const navigate=(next:string)=>{window.location.hash=`/${next}`;setPage(next)};
   const goLogin=()=>{window.location.hash='/login';setAuthPage('login')};
