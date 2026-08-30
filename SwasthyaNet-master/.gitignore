@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+node_modules/
+dist/
+.DS_Store
+
+# Playwright test artifacts
+frontend/playwright-report/
+frontend/test-results/
