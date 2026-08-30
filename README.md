@@ -51,6 +51,22 @@ flowchart LR
 
 The `backend/app/services` directory intentionally separates the core mechanisms. `simulator.py` creates realistic-but-synthetic daily fluctuations. `forecasting.py`, `alerts.py`, `redistribution.py`, and `federation.py` contain the inspectable AI and network logic. `main.py` exposes those services through stable API contracts.
 
+## Google AI (Gemini) integration
+
+`backend/app/services/ai_client.py` calls the Gemini API directly (`GEMINI_API_KEY` env var) to generate three kinds of content on top of the statistical forecasting layer:
+
+- **Forecast explanations** (`GET /api/forecasts/{phc_id}`) — Gemini reads the recent consumption history and the statistical model's prediction, then writes a short plain-language explanation of the pattern and a risk level.
+- **Redistribution reasoning** (`GET /api/redistribution/insights`) — Gemini writes a one-sentence operational justification for each recommended inter-PHC transfer.
+- **Multilingual district briefings** (`GET /api/insights/{phc_id}?lang=en|hi|mr`) — Gemini generates a short executive summary in English, Hindi, or Marathi for a district health officer.
+
+Every one of these calls has a **transparent, automatic fallback**: if `GEMINI_API_KEY` is unset, the request times out, or the response can't be parsed, the endpoint returns the underlying statistical/rule-based result instead and marks the response with `"is_ai_generated": false` and `"method_used"`. The API never breaks because of an AI provider issue — this is verified by `backend/tests/test_ai_integration.py`.
+
+Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default `gemini-1.5-flash`) as an environment variable to enable live AI generation; see `backend/.env.example`.
+
+## Persistence
+
+`backend/app/services/db_manager.py` persists the simulation snapshot (day, tick, and every PHC's inventory/history) to SQLite (`DATABASE_PATH`, default `/tmp/swasthyanet.db`) on every simulated day advance. On startup, the app restores the last saved snapshot instead of reseeding from scratch, so demo state survives a server restart or redeploy.
+
 ## Core mechanism
 
 For each medicine at each PHC, the forecast calculates a weighted moving average over the most recent seven daily consumption observations. Recent observations have higher weight. The projected stock curve is current quantity minus predicted daily use across a seven-day horizon, and days until stockout is current quantity divided by predicted daily use. This is simple, auditable, dependency-light, and easy to defend during a technical review.

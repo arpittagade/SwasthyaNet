@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from random import Random
 
+from . import db_manager
+
 MEDICINES = [
     {"id": "paracetamol", "name": "Paracetamol 500mg", "unit": "tablets", "category": "analgesic"},
     {"id": "ors", "name": "ORS Sachets", "unit": "sachets", "category": "essential"},
@@ -30,6 +32,14 @@ PHCS = [
 class SimulationState:
     def __init__(self, seed: int = 42):
         self.rng = Random(seed)
+        db_manager.init_db()
+        restored = db_manager.load_state()
+        if restored is not None:
+            day_str, tick, phcs = restored
+            self.day = date.fromisoformat(day_str)
+            self.tick = tick
+            self.phcs = phcs
+            return
         self.day = date.today() - timedelta(days=29)
         self.tick = 0
         self.phcs = []
@@ -46,6 +56,7 @@ class SimulationState:
             phc_state = {**phc, "inventory": inventory, "occupied": int(phc["beds"] * (0.52 + (p_idx % 3) * 0.08)), "attendance": round(89 - p_idx * 2.2, 1), "history": []}
             for _ in range(30): self._record_day(phc_state, historical=True)
             self.phcs.append(phc_state)
+        db_manager.save_state(self.day.isoformat(), self.tick, self.phcs)
 
     def _record_day(self, phc, historical=False):
         for item in phc["inventory"]:
@@ -64,6 +75,7 @@ class SimulationState:
         self.tick += 1
         self.day += timedelta(days=1)
         for phc in self.phcs: self._record_day(phc)
+        db_manager.save_state(self.day.isoformat(), self.tick, self.phcs)
         return self.snapshot()
 
     def snapshot(self):
