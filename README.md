@@ -68,8 +68,28 @@ All three of these are now surfaced directly in the frontend (`frontend/src/main
 - The **Explainable Forecast** panel shows the Gemini-generated explanation and risk pill under the chart for the selected PHC's top medicine.
 - A new **Gemini District Briefing** panel generates a live executive summary for the selected PHC, with an EN / HI / MR language switch.
 - The **Redistribution Engine** panel shows Gemini's one-sentence justification for each recommended transfer (state-official view).
+- A floating **SwasthyaNet Assistant** chatbot (`POST /api/chat`, bottom-right on every page) answers free-form questions ("which PHC is most at risk right now?") using Gemini, grounded in a server-built summary of the live dashboard data the signed-in user is allowed to see.
 
 Each of these renders a small badge — "Powered by Google Gemini" when the AI call succeeded, or the underlying fallback method name (e.g. "weighted_moving_average", "rule_based_template") when it didn't — so it's always transparent which content came from Gemini versus the statistical baseline. Check `GET /api/health` on your deployed backend (`gemini_configured`) to confirm your `GEMINI_API_KEY` is actually set before judging.
+
+### Rate-limit protection
+
+The free Gemini tier only allows a handful of requests per minute, and the dashboard used to re-request AI content on every live simulation tick (every 8s) — enough to trip HTTP 429 errors within seconds. `ai_client.py` now:
+
+- Caches successful Gemini responses in-memory for `GEMINI_CACHE_TTL_SECONDS` (default 90s), so unchanged data doesn't re-call the API.
+- Enforces a shared call budget (`GEMINI_MAX_CALLS_PER_MINUTE`, default 10) across all Gemini call sites; once exhausted for the current minute, calls skip straight to the statistical/rule-based fallback instead of hitting the API and failing.
+- Retries once with a short backoff on an HTTP 429 before giving up gracefully.
+- The chat endpoint additionally rate-limits each signed-in user (`CHAT_MAX_CALLS_PER_MINUTE`, default 12) to stop one user's chat session from starving everyone else's quota.
+
+On the frontend, the three Gemini-powered panels also moved off the fast 8-second live tick onto their own 60-second refresh clock, since dashboard occupancy changing every few seconds never needs a fresh AI narrative that often.
+
+### Security notes
+
+- All AI/chat endpoints require a valid signed-in session (`Authorization: Bearer`); the chat assistant's context is built **server-side** from data the authenticated user is already permitted to see (a PHC admin never sees another district's data), so a user can't inject fake "facts" through the chat input to manipulate what the model treats as ground truth.
+- The chat system prompt explicitly instructs Gemini to ignore in-message attempts to override its instructions, reveal the prompt, or go off-topic, and every response is capped in length before being sent back.
+- CORS defaults to permissive for a smooth hackathon deploy, but set `CORS_ALLOWED_ORIGINS` (comma-separated exact origins) in production; the API now also sends `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy` headers on every response.
+- Set a real, random `SWASTHYANET_JWT_SECRET` in your Render environment — the code ships a `dev-only-change-this-secret` fallback purely so local dev doesn't crash, and it must never be used in a deployed instance.
+- `GEMINI_API_KEY` is read only on the backend (`ai_client.py`); it is never sent to or exposed in the frontend bundle.
 
 ## Persistence
 

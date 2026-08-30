@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket
+import os
+import time
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from .auth import USERS, User, can_access_phc, current_user, decode_token, issue_token, public_user, require_roles, verify_password
 from .services.simulator import STATE
 from .services.forecasting import forecast
@@ -17,11 +19,56 @@ from .services import ai_client
 from .services.simulator import MEDICINES
 
 app = FastAPI(title="SwasthyaNet API", version="0.2.0", description="Synthetic federated PHC resilience demo")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+_default_origins = "http://localhost:5173,http://localhost:4173"
+_configured_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+if _configured_origins:
+    ALLOWED_ORIGINS = [o.strip() for o in _configured_origins.split(",") if o.strip()]
+else:
+    # No explicit allow-list configured: fall back to permissive so the demo
+    # never breaks a hackathon deploy, but this should be set in production
+    # (see backend/.env.example) to your real frontend origin(s).
+    ALLOWED_ORIGINS = ["*"]
+
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
+
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
+    history: list[dict] = Field(default_factory=list, max_length=12)
+
+
+# --- Simple per-user rate limiting for AI-backed endpoints -----------------
+# Protects both the Gemini quota and the API itself from being hammered by a
+# single client (accidentally, via a bug, or on purpose).
+_chat_calls: dict[str, list[float]] = {}
+CHAT_MAX_PER_MINUTE = int(os.getenv("CHAT_MAX_CALLS_PER_MINUTE", "12"))
+
+
+def _chat_rate_limit_ok(username: str) -> bool:
+    now = time.time()
+    bucket = _chat_calls.setdefault(username, [])
+    while bucket and now - bucket[0] > 60:
+        bucket.pop(0)
+    if len(bucket) >= CHAT_MAX_PER_MINUTE:
+        return False
+    bucket.append(now)
+    return True
 
 
 def phc_view(phc: dict) -> dict:
@@ -181,6 +228,51 @@ def redistribution_insights(user: User = Depends(require_roles("state_official")
             entry["method_used"] = "rule_based"
         enriched.append(entry)
     return {"recommendations": enriched}
+
+
+@app.post("/api/chat")
+def chat(payload: ChatRequest, user: User = Depends(current_user)):
+    if not _chat_rate_limit_ok(user.username):
+        raise HTTPException(status_code=429, detail="Too many messages -- please wait a moment before asking again.")
+
+    # Build the ground-truth context server-side, scoped to what this user can
+    # see, so the model can't be tricked by client-supplied "facts" and a PHC
+    # admin can't leak another district's data through the chat.
+    visible = STATE.phcs if user.role == "state_official" else [p for p in STATE.phcs if p["id"] == user.phc_id]
+    alerts = build_alerts(visible)
+    lines = [f"Viewer: {user.display_name} ({user.role}). Simulation day {STATE.day.isoformat()}, tick {STATE.tick}."]
+    for phc in visible:
+        occ = round(phc["occupied"] / phc["beds"] * 100, 1)
+        at_risk = []
+        for item in phc["inventory"]:
+            fc = forecast(item)
+            if fc["days_until_stockout"] <= 10:
+                name = _MEDICINE_NAMES.get(item["medicine_id"], item["medicine_id"])
+                at_risk.append(f"{name} ({fc['days_until_stockout']}d)")
+        lines.append(
+            f"- {phc['name']} ({phc['district']}): {occ}% bed occupancy, "
+            f"{sum(1 for a in build_alerts([phc]))} active alerts. "
+            f"At-risk medicines: {', '.join(at_risk) if at_risk else 'none'}."
+        )
+    if alerts:
+        lines.append("Recent alerts: " + "; ".join(f"{a['title']}" for a in alerts[:6]))
+    if user.role == "state_official":
+        plan = recommendations(STATE.phcs)[:5]
+        if plan:
+            lines.append("Pending redistribution recommendations: " + "; ".join(
+                f"{r['quantity']} {r['medicine_id']} {r['source_name']}\u2192{r['destination_name']}" for r in plan
+            ))
+    context_summary = "\n".join(lines)
+
+    reply = ai_client.gemini_chat_answer(question=payload.message, context_summary=context_summary, history=payload.history)
+    if reply:
+        return {"reply": reply, "is_ai_generated": True, "method_used": f"Google Gemini ({ai_client.GEMINI_MODEL})"}
+    return {
+        "reply": "The AI assistant is temporarily unavailable (rate limited or not configured). "
+                 "In the meantime, check the Overview and Supply logistics tabs for live occupancy, alerts, and stock levels.",
+        "is_ai_generated": False,
+        "method_used": "fallback",
+    }
 
 
 @app.post("/api/simulate/tick")
