@@ -62,7 +62,7 @@ function App(){
   const exportSnapshot=()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`swasthyanet-snapshot-${data.day}.json`;a.click();URL.revokeObjectURL(url);setToast('Snapshot exported successfully')};
   const curve=(detail?.medicines?.[0]?.forecast?.predicted_quantity||[]).map((quantity:number,day:number)=>({day:`D+${day}`,quantity}));
   const selectedMedicineForecast=aiForecasts.find((f:any)=>f.medicine_id===detail?.medicines?.[0]?.medicine_id)||aiForecasts[0];
-  const activeRecommendations=aiRedistribution||data.recommendations;
+  const activeRecommendations=aiRedistribution||data?.recommendations||[];
   const trendRows=rangeMode==='custom'?(outbreak?.trends||[]):(outbreak?.trends||[]).slice(-trendWeeks);
   const forecastModel=outbreak?.forecast?.[diseaseKey];
   const forecastRows=forecastModel?.points||[];
