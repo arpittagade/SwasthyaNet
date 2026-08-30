@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from .auth import USERS, User, can_access_phc, current_user, decode_token, issue_token, public_user, require_roles, verify_password
@@ -33,9 +34,27 @@ else:
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # A judge hitting an unexpected edge case should see a clean JSON error
+    # (which the frontend can parse and show a message for) rather than a
+    # bare HTML 500 page that breaks `response.json()` on the client and
+    # looks like the request silently vanished.
+    logging.getLogger("swasthyanet.api").exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Unexpected server error. Please try again."})
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        # Belt-and-suspenders: BaseHTTPMiddleware can prevent a registered
+        # exception_handler from seeing downstream errors, which would
+        # otherwise surface as a bare connection error instead of JSON the
+        # frontend can parse and show a message for.
+        logging.getLogger("swasthyanet.api").exception("Unhandled error on %s %s", request.method, request.url.path)
+        response = JSONResponse(status_code=500, content={"detail": "Unexpected server error. Please try again."})
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -235,36 +254,41 @@ def chat(payload: ChatRequest, user: User = Depends(current_user)):
     if not _chat_rate_limit_ok(user.username):
         raise HTTPException(status_code=429, detail="Too many messages -- please wait a moment before asking again.")
 
-    # Build the ground-truth context server-side, scoped to what this user can
-    # see, so the model can't be tricked by client-supplied "facts" and a PHC
-    # admin can't leak another district's data through the chat.
-    visible = STATE.phcs if user.role == "state_official" else [p for p in STATE.phcs if p["id"] == user.phc_id]
-    alerts = build_alerts(visible)
-    lines = [f"Viewer: {user.display_name} ({user.role}). Simulation day {STATE.day.isoformat()}, tick {STATE.tick}."]
-    for phc in visible:
-        occ = round(phc["occupied"] / phc["beds"] * 100, 1)
-        at_risk = []
-        for item in phc["inventory"]:
-            fc = forecast(item)
-            if fc["days_until_stockout"] <= 10:
-                name = _MEDICINE_NAMES.get(item["medicine_id"], item["medicine_id"])
-                at_risk.append(f"{name} ({fc['days_until_stockout']}d)")
-        lines.append(
-            f"- {phc['name']} ({phc['district']}): {occ}% bed occupancy, "
-            f"{sum(1 for a in build_alerts([phc]))} active alerts. "
-            f"At-risk medicines: {', '.join(at_risk) if at_risk else 'none'}."
-        )
-    if alerts:
-        lines.append("Recent alerts: " + "; ".join(f"{a['title']}" for a in alerts[:6]))
-    if user.role == "state_official":
-        plan = recommendations(STATE.phcs)[:5]
-        if plan:
-            lines.append("Pending redistribution recommendations: " + "; ".join(
-                f"{r['quantity']} {r['medicine_id']} {r['source_name']}\u2192{r['destination_name']}" for r in plan
-            ))
-    context_summary = "\n".join(lines)
+    try:
+        # Build the ground-truth context server-side, scoped to what this user
+        # can see, so the model can't be tricked by client-supplied "facts" and
+        # a PHC admin can't leak another district's data through the chat.
+        visible = STATE.phcs if user.role == "state_official" else [p for p in STATE.phcs if p["id"] == user.phc_id]
+        alerts = build_alerts(visible)
+        lines = [f"Viewer: {user.display_name} ({user.role}). Simulation day {STATE.day.isoformat()}, tick {STATE.tick}."]
+        for phc in visible:
+            occ = round(phc["occupied"] / phc["beds"] * 100, 1)
+            at_risk = []
+            for item in phc["inventory"]:
+                fc = forecast(item)
+                if fc["days_until_stockout"] <= 10:
+                    name = _MEDICINE_NAMES.get(item["medicine_id"], item["medicine_id"])
+                    at_risk.append(f"{name} ({fc['days_until_stockout']}d)")
+            lines.append(
+                f"- {phc['name']} ({phc['district']}): {occ}% bed occupancy, "
+                f"{sum(1 for a in build_alerts([phc]))} active alerts. "
+                f"At-risk medicines: {', '.join(at_risk) if at_risk else 'none'}."
+            )
+        if alerts:
+            lines.append("Recent alerts: " + "; ".join(f"{a['title']}" for a in alerts[:6]))
+        if user.role == "state_official":
+            plan = recommendations(STATE.phcs)[:5]
+            if plan:
+                lines.append("Pending redistribution recommendations: " + "; ".join(
+                    f"{r['quantity']} {r['medicine_id']} {r['source_name']}\u2192{r['destination_name']}" for r in plan
+                ))
+        context_summary = "\n".join(lines)
 
-    reply = ai_client.gemini_chat_answer(question=payload.message, context_summary=context_summary, history=payload.history)
+        reply = ai_client.gemini_chat_answer(question=payload.message, context_summary=context_summary, history=payload.history)
+    except Exception as exc:  # noqa: BLE001 - the chat endpoint must never 500 on a judge's demo
+        logging.getLogger("swasthyanet.chat").warning("Chat context/AI call failed: %s", exc)
+        reply = None
+
     if reply:
         return {"reply": reply, "is_ai_generated": True, "method_used": f"Google Gemini ({ai_client.GEMINI_MODEL})"}
     return {

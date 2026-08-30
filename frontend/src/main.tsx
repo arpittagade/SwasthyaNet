@@ -23,6 +23,7 @@ function ChatWidget({api,authFetch}:{api:string;authFetch:(url:string,options?:R
   const [messages,setMessages]=useState<{role:'user'|'assistant';text:string;isAi?:boolean;method?:string}[]>([{role:'assistant',text:"Hi, I'm the SwasthyaNet Assistant, powered by Google Gemini. Ask me about stock risk, alerts, or occupancy for the PHCs you can see.",isAi:true}]);
   const [input,setInput]=useState('');
   const [sending,setSending]=useState(false);
+  const [slowNotice,setSlowNotice]=useState(false);
   const send=(e?:FormEvent)=>{
     e?.preventDefault();
     const text=input.trim();
@@ -31,13 +32,29 @@ function ChatWidget({api,authFetch}:{api:string;authFetch:(url:string,options?:R
     setMessages(m=>[...m,{role:'user',text}]);
     setInput('');
     setSending(true);
-    authFetch(`${api}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text.slice(0,500),history})})
-      .then(async r=>{if(r.status===429){return {reply:"You're sending messages a bit fast — please wait a few seconds and try again.",is_ai_generated:false,method_used:'rate_limited'}}return r.json()})
-      .then(body=>setMessages(m=>[...m,{role:'assistant',text:body.reply,isAi:body.is_ai_generated,method:body.method_used}]))
-      .catch(()=>setMessages(m=>[...m,{role:'assistant',text:"Something went wrong reaching the assistant. Please try again.",isAi:false}]))
-      .finally(()=>setSending(false));
+    setSlowNotice(false);
+    const slowTimer=setTimeout(()=>setSlowNotice(true),6000);
+    const controller=new AbortController();
+    const abortTimer=setTimeout(()=>controller.abort(),45000);
+    authFetch(`${api}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text.slice(0,500),history}),signal:controller.signal})
+      .then(async r=>{
+        if(r.status===429)return {reply:"You're sending messages a bit fast — please wait a few seconds and try again.",is_ai_generated:false,method_used:'rate_limited'};
+        if(r.status===401)return {reply:"Your session expired — please sign in again to keep chatting.",is_ai_generated:false,method_used:'auth_expired'};
+        if(!r.ok){
+          let detail='';
+          try{const body=await r.json();detail=body?.detail||''}catch{/* non-JSON error body */}
+          return {reply:`The assistant hit an error (HTTP ${r.status})${detail?`: ${detail}`:'.'} Please try again.`,is_ai_generated:false,method_used:'error'};
+        }
+        try{return await r.json()}catch{return {reply:'The assistant sent back an unexpected response. Please try again.',is_ai_generated:false,method_used:'error'}}
+      })
+      .then(body=>setMessages(m=>[...m,{role:'assistant',text:body.reply||'No response received — please try again.',isAi:body.is_ai_generated,method:body.method_used}]))
+      .catch(err=>{
+        const timedOut=err?.name==='AbortError';
+        setMessages(m=>[...m,{role:'assistant',text:timedOut?"The server is taking unusually long to respond (it may be waking up from idle). Please try again in a few seconds.":"Couldn't reach the assistant — check your connection and try again.",isAi:false}]);
+      })
+      .finally(()=>{setSending(false);setSlowNotice(false);clearTimeout(slowTimer);clearTimeout(abortTimer)});
   };
-  return <div className="chat-widget">{open&&<div className="chat-panel"><div className="chat-head"><div><strong>SwasthyaNet Assistant</strong><span>Grounded in your live dashboard data</span></div><button className="chat-close" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></div><div className="chat-body">{messages.map((m,i)=><div className={`chat-msg ${m.role}`} key={i}><p>{m.text}</p>{m.role==='assistant'&&<AiBadge isAi={m.isAi} method={m.method}/>}</div>)}{sending&&<div className="chat-msg assistant"><p className="chat-typing">Thinking…</p></div>}</div><form className="chat-input-row" onSubmit={send}><input value={input} onChange={e=>setInput(e.target.value)} maxLength={500} placeholder="Ask about stock, alerts, occupancy…" disabled={sending}/><button type="submit" disabled={sending||!input.trim()}>→</button></form></div>}<button className="chat-fab" onClick={()=>setOpen(o=>!o)} aria-label="Open SwasthyaNet Assistant"><span>✦</span></button></div>;
+  return <div className="chat-widget">{open&&<div className="chat-panel"><div className="chat-head"><div><strong>SwasthyaNet Assistant</strong><span>Grounded in your live dashboard data</span></div><button className="chat-close" onClick={()=>setOpen(false)} aria-label="Close chat">×</button></div><div className="chat-body">{messages.map((m,i)=><div className={`chat-msg ${m.role}`} key={i}><p>{m.text}</p>{m.role==='assistant'&&<AiBadge isAi={m.isAi} method={m.method}/>}</div>)}{sending&&<div className="chat-msg assistant"><p className="chat-typing">{slowNotice?'Still working — the server may be waking up from idle, this can take up to a minute…':'Thinking…'}</p></div>}</div><form className="chat-input-row" onSubmit={send}><input value={input} onChange={e=>setInput(e.target.value)} maxLength={500} placeholder="Ask about stock, alerts, occupancy…" disabled={sending}/><button type="submit" disabled={sending||!input.trim()}>→</button></form></div>}<button className="chat-fab" onClick={()=>setOpen(o=>!o)} aria-label="Open SwasthyaNet Assistant"><span>✦</span></button></div>;
 }
 
 function ThemeToggle({theme,setTheme,compact=false}:{theme:Theme;setTheme:(next:Theme)=>void;compact?:boolean}){const dark=theme==='dark';return <button className={`theme-toggle ${compact?'compact':''}`} onClick={()=>setTheme(dark?'light':'dark')} aria-label={dark?'Switch to light mode':'Switch to dark mode'}><span className="theme-toggle-icon">{dark?'☀':'☾'}</span>{!compact&&<span>{dark?'Light mode':'Dark mode'}</span>}</button>}

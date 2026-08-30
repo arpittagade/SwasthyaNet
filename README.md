@@ -90,6 +90,11 @@ On the frontend, the three Gemini-powered panels also moved off the fast 8-secon
 - CORS defaults to permissive for a smooth hackathon deploy, but set `CORS_ALLOWED_ORIGINS` (comma-separated exact origins) in production; the API now also sends `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy` headers on every response.
 - Set a real, random `SWASTHYANET_JWT_SECRET` in your Render environment — the code ships a `dev-only-change-this-secret` fallback purely so local dev doesn't crash, and it must never be used in a deployed instance.
 - `GEMINI_API_KEY` is read only on the backend (`ai_client.py`); it is never sent to or exposed in the frontend bundle.
+- If any unexpected error occurs anywhere in the API (a bug, a bad edge case, a dependency hiccup), a middleware safety net returns a clean JSON `{"detail": ...}` response with security headers intact instead of letting a raw HTML/plaintext error page reach the frontend — this is what makes `response.json()` on the client reliable even on failure paths.
+
+### A note on Render's free tier
+
+If your backend is on Render's free plan, it spins down after ~15 minutes of no traffic and takes 30–60s to wake up on the next request. The chat widget shows "Still working — the server may be waking up from idle…" if a reply takes more than 6 seconds, and times out with a clear message after 45s rather than hanging silently — but for a live judging demo, it's worth opening the site (or hitting `/api/health`) a minute or two beforehand so the backend is already warm.
 
 ## Persistence
 
