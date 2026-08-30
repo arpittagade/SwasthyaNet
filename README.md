@@ -63,6 +63,14 @@ Every one of these calls has a **transparent, automatic fallback**: if `GEMINI_A
 
 Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default `gemini-1.5-flash`) as an environment variable to enable live AI generation; see `backend/.env.example`.
 
+All three of these are now surfaced directly in the frontend (`frontend/src/main.tsx`), not just the API:
+
+- The **Explainable Forecast** panel shows the Gemini-generated explanation and risk pill under the chart for the selected PHC's top medicine.
+- A new **Gemini District Briefing** panel generates a live executive summary for the selected PHC, with an EN / HI / MR language switch.
+- The **Redistribution Engine** panel shows Gemini's one-sentence justification for each recommended transfer (state-official view).
+
+Each of these renders a small badge — "Powered by Google Gemini" when the AI call succeeded, or the underlying fallback method name (e.g. "weighted_moving_average", "rule_based_template") when it didn't — so it's always transparent which content came from Gemini versus the statistical baseline. Check `GET /api/health` on your deployed backend (`gemini_configured`) to confirm your `GEMINI_API_KEY` is actually set before judging.
+
 ## Persistence
 
 `backend/app/services/db_manager.py` persists the simulation snapshot (day, tick, and every PHC's inventory/history) to SQLite (`DATABASE_PATH`, default `/tmp/swasthyanet.db`) on every simulated day advance. On startup, the app restores the last saved snapshot instead of reseeding from scratch, so demo state survives a server restart or redeploy.
